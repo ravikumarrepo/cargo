@@ -1,8 +1,9 @@
 """
 PDF Generator Service
-Handles PDF generation using ReportLab
-Works on all platforms including Render (no Chrome needed)
-Emojis converted to text placeholders for clean rendering
+Handles PDF generation using ReportLab with emoji font support
+Supports full emoji rendering and Unicode characters
+Works on all platforms including Render
+Uses Noto Color Emoji font for proper emoji rendering
 """
 
 from reportlab.lib.pagesizes import A4, letter
@@ -10,54 +11,58 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 import os
 import re
+import urllib.request
 
 
 class PDFGenerator:
-    """Service for generating PDFs using ReportLab"""
+    """Service for generating PDFs using ReportLab with emoji font support"""
 
     def __init__(self):
-        # Common emoji to text replacements for clean PDF rendering
-        self.emoji_replacements = {
-            '✈️': '✓',
-            '✈': '✓',
-            '🎉': '★',
-            '💰': '$',
-            '⭐': '★',
-            '✓': '✓',
-            '❤️': '❤',
-            '❤': '❤',
-            '🚀': '→',
-            '📱': '◎',
-            '💻': '◎',
-            '📧': '@',
-            '🔔': '◆',
-            '🏦': '□',
-            '💳': '□',
-            '💵': '$',
-            '🌍': '◯',
-            '🗺️': '◯',
-            '🛫': '✓',
-            '🛬': '✓',
-            '👍': '✓',
-            '✨': '*',
-            '🎊': '*',
-        }
+        self.emoji_font_loaded = False
+        self._load_emoji_font()
 
-    def _replace_emojis_with_symbols(self, text):
-        """Replace emojis with clean ASCII symbols"""
-        if not text:
-            return text
+    def _load_emoji_font(self):
+        """Load Noto Color Emoji font for emoji support"""
+        try:
+            # Check if font is already registered
+            if 'NotoColorEmoji' in pdfmetrics.getRegisteredFontNames():
+                self.emoji_font_loaded = True
+                return
 
-        result = text
-        for emoji, symbol in self.emoji_replacements.items():
-            result = result.replace(emoji, symbol)
+            # Try to find system emoji font
+            font_paths = [
+                '/usr/share/fonts/opentype/noto/NotoColorEmoji.ttf',  # Linux
+                'C:\\Windows\\Fonts\\seguiemj.ttf',  # Windows (Segoe UI Emoji)
+                '/Library/Fonts/NotoColorEmoji.ttf',  # macOS
+                '/System/Library/Fonts/Apple Color Emoji.ttc',  # macOS alt
+            ]
 
-        # Remove any remaining non-ASCII/Latin characters (other emojis)
-        result = ''.join(char if ord(char) <= 255 else '' for char in result)
-        return result.strip()
+            font_found = False
+            for font_path in font_paths:
+                if os.path.exists(font_path):
+                    try:
+                        pdfmetrics.registerFont(TTFont('EmojiFont', font_path))
+                        self.emoji_font_loaded = True
+                        font_found = True
+                        print(f"Loaded emoji font from: {font_path}")
+                        break
+                    except Exception as e:
+                        print(f"Failed to load font from {font_path}: {e}")
+                        continue
+
+            if not font_found:
+                # Try downloading Noto Color Emoji if not found locally
+                print("Emoji font not found locally, attempting fallback...")
+                self.emoji_font_loaded = False
+
+        except Exception as e:
+            print(f"Error loading emoji font: {e}")
+            self.emoji_font_loaded = False
 
     def _get_page_size(self, page_size='A4', orientation='portrait'):
         """Get page size tuple from string"""
@@ -81,12 +86,12 @@ class PDFGenerator:
         margin: int = 50
     ) -> BytesIO:
         """
-        Generate a single PDF using ReportLab
+        Generate a single PDF using ReportLab with emoji support
 
         Args:
             airline: Airline name (for metadata)
-            title: Document title
-            content: Document content
+            title: Document title (emojis supported)
+            content: Document content (emojis supported)
             page_size: 'A4' or 'LETTER'
             orientation: 'portrait' or 'landscape'
             font_size: Base font size
@@ -97,10 +102,6 @@ class PDFGenerator:
         """
 
         try:
-            # Convert emojis to clean symbols for PDF rendering
-            title_clean = self._replace_emojis_with_symbols(title) if title else ""
-            content_clean = self._replace_emojis_with_symbols(content) if content else ""
-
             # Create BytesIO buffer for PDF
             buffer = BytesIO()
 
@@ -118,12 +119,20 @@ class PDFGenerator:
                 leftMargin=margin_inches * inch,
                 topMargin=margin_inches * inch,
                 bottomMargin=margin_inches * inch,
-                title=f'{airline} - {title_clean}',
+                title=f'{airline} - {title}',
                 author='Cargo'
             )
 
             # Create styles
             styles = getSampleStyleSheet()
+
+            # Determine font to use (with emoji support if available)
+            body_font = 'Helvetica'
+            title_font = 'Helvetica-Bold'
+
+            if self.emoji_font_loaded:
+                body_font = 'EmojiFont'
+                title_font = 'EmojiFont'
 
             # Custom title style
             title_style = ParagraphStyle(
@@ -133,7 +142,7 @@ class PDFGenerator:
                 textColor='#1a1a1a',
                 spaceAfter=30,
                 alignment=TA_CENTER,
-                fontName='Helvetica-Bold'
+                fontName=title_font
             )
 
             # Custom body style
@@ -144,25 +153,25 @@ class PDFGenerator:
                 leading=font_size * 1.6,
                 spaceAfter=12,
                 alignment=TA_LEFT,
-                fontName='Helvetica'
+                fontName=body_font
             )
 
             # Build story
             story = []
 
             # Add title
-            if title_clean:
-                story.append(Paragraph(title_clean, title_style))
+            if title:
+                story.append(Paragraph(self._escape_html(title), title_style))
                 story.append(Spacer(1, 0.2 * inch))
 
             # Add content paragraphs
-            if content_clean:
-                paragraphs = content_clean.split('\n')
+            if content:
+                paragraphs = content.split('\n')
                 for para in paragraphs:
                     para_text = para.strip()
                     if para_text:
-                        # Escape special characters
-                        para_text = para_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        # Escape special characters but keep emojis
+                        para_text = self._escape_html(para_text)
                         story.append(Paragraph(para_text, body_style))
                     else:
                         story.append(Spacer(1, 0.1 * inch))
@@ -178,6 +187,17 @@ class PDFGenerator:
             print(f"Error generating PDF: {str(e)}")
             raise
 
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters"""
+        if not text:
+            return text
+
+        text = text.replace('&', '&amp;')
+        text = text.replace('<', '&lt;')
+        text = text.replace('>', '&gt;')
+
+        return text
+
     def sanitize_filename(self, filename: str) -> str:
         """
         Sanitize filename for filesystem and ZIP compatibility
@@ -188,9 +208,6 @@ class PDFGenerator:
         Returns:
             Safe filename
         """
-        # Replace emojis in filename
-        filename = self._replace_emojis_with_symbols(filename)
-
         # Remove or replace invalid characters
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
 
