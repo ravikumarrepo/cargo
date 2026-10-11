@@ -83,8 +83,10 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    // Store token
+                    // Store tokens and expiry
                     localStorage.setItem('auth_token', result.token);
+                    localStorage.setItem('refresh_token', result.refreshToken);
+                    localStorage.setItem('token_expires_at', new Date(result.expiresAt).getTime());
                     localStorage.setItem('current_user', JSON.stringify(result.user));
 
                     // Redirect to app

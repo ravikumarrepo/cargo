@@ -65,6 +65,15 @@ function getToken() {
     return localStorage.getItem('auth_token');
 }
 
+function getRefreshToken() {
+    return localStorage.getItem('refresh_token');
+}
+
+function getTokenExpiry() {
+    const expiry = localStorage.getItem('token_expires_at');
+    return expiry ? parseInt(expiry) : null;
+}
+
 function getCurrentUser() {
     const user = localStorage.getItem('current_user');
     return user ? JSON.parse(user) : null;
@@ -91,6 +100,12 @@ function checkAuthentication() {
 
     // Setup logout
     document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // Start session refresh timer
+    startSessionRefreshTimer();
+
+    // Start expiry warning timer
+    startExpiryWarningTimer();
 }
 
 async function logout() {
@@ -107,8 +122,132 @@ async function logout() {
     }
 
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('token_expires_at');
     localStorage.removeItem('current_user');
     window.location.href = '/login';
+}
+
+// Session refresh timer - refresh 30 minutes before expiry
+function startSessionRefreshTimer() {
+    const expiry = getTokenExpiry();
+    if (!expiry) return;
+
+    const refreshTime = expiry - (30 * 60 * 1000); // 30 minutes before expiry
+    const now = Date.now();
+    const timeUntilRefresh = refreshTime - now;
+
+    if (timeUntilRefresh > 0) {
+        setTimeout(() => {
+            tryRefreshToken();
+            // Schedule next refresh
+            startSessionRefreshTimer();
+        }, timeUntilRefresh);
+    } else if (timeUntilRefresh < 0 && timeUntilRefresh > -(5 * 60 * 1000)) {
+        // Token expiry is very soon, try to refresh immediately
+        tryRefreshToken();
+    }
+}
+
+// Try to refresh token silently
+async function tryRefreshToken() {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return false;
+
+    try {
+        const response = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ refreshToken })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                // Update tokens and expiry
+                localStorage.setItem('auth_token', data.token);
+                localStorage.setItem('refresh_token', data.refreshToken);
+                localStorage.setItem('token_expires_at', new Date(data.expiresAt).getTime());
+                console.log('Token refreshed successfully');
+                return true;
+            }
+        }
+    } catch (error) {
+        console.error('Token refresh failed:', error);
+    }
+
+    return false;
+}
+
+// Session expiry warning - warn 5 minutes before expiry
+function startExpiryWarningTimer() {
+    const expiry = getTokenExpiry();
+    if (!expiry) return;
+
+    const warningTime = expiry - (5 * 60 * 1000); // 5 minutes before expiry
+    const now = Date.now();
+    const timeUntilWarning = warningTime - now;
+
+    if (timeUntilWarning > 0) {
+        setTimeout(() => {
+            showExpiryWarning();
+        }, timeUntilWarning);
+    } else if (timeUntilWarning < 0 && timeUntilWarning > -(5 * 60 * 1000)) {
+        // Already in warning period
+        showExpiryWarning();
+    }
+}
+
+// Show session expiry warning modal
+function showExpiryWarning() {
+    const expiry = getTokenExpiry();
+    if (!expiry) return;
+
+    const now = Date.now();
+    const minutesLeft = Math.ceil((expiry - now) / (60 * 1000));
+
+    if (minutesLeft > 0) {
+        // Check if modal already shown
+        if (document.getElementById('expiryWarningModal')) return;
+
+        const modal = document.createElement('div');
+        modal.id = 'expiryWarningModal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        `;
+
+        modal.innerHTML = `
+            <div style="background: white; padding: 30px; border-radius: 8px; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 15px 0; color: #ff6b6b;">Session Expiring Soon</h3>
+                <p style="margin: 0 0 20px 0; color: #666;">Your session will expire in <strong>${minutesLeft} minute${minutesLeft !== 1 ? 's' : ''}</strong>.</p>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="document.getElementById('expiryWarningModal').remove(); tryRefreshToken();" style="flex: 1; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer;">Extend Session</button>
+                    <button onclick="logout();" style="flex: 1; padding: 10px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Logout</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Re-check warning in 1 minute
+        setTimeout(() => {
+            if (document.getElementById('expiryWarningModal')) {
+                document.getElementById('expiryWarningModal').remove();
+            }
+            startExpiryWarningTimer();
+        }, 60 * 1000);
+    }
 }
 
 // ============================================================================
@@ -132,8 +271,20 @@ async function apiCall(endpoint, method = 'GET', data = null) {
     try {
         const response = await fetch(endpoint, options);
 
-        // Handle 401 - redirect to login
+        // Handle 401 - try to refresh and retry
         if (response.status === 401) {
+            const errorData = await response.json();
+
+            // If expired, try to refresh
+            if (errorData.reason === 'expired' || errorData.error?.includes('expired')) {
+                const refreshed = await tryRefreshToken();
+                if (refreshed) {
+                    // Retry with new token
+                    return apiCall(endpoint, method, data);
+                }
+            }
+
+            // Refresh failed or not an expiry issue, redirect to login
             window.location.href = '/login';
             return null;
         }
