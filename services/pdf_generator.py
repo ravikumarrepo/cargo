@@ -1,52 +1,28 @@
 """
 PDF Generator Service
-Handles PDF generation using ReportLab
-Works on all platforms including Render
-Emojis are automatically removed for clean PDF rendering
+Handles PDF generation using Playwright with Chrome
+Supports full emoji rendering and Unicode characters
+Works on Render with headless Chromium
 """
 
-from reportlab.lib.pagesizes import A4, letter
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+import asyncio
+from playwright.async_api import async_playwright
 from io import BytesIO
 import os
 import re
 
 
 class PDFGenerator:
-    """Service for generating PDFs using ReportLab"""
+    """Service for generating PDFs using Playwright with full emoji support"""
 
     def __init__(self):
         pass
 
-    def _remove_emojis(self, text: str) -> str:
-        """Remove emojis and special Unicode characters, keep only ASCII and Latin"""
-        if not text:
-            return text
-
-        # Keep only ASCII (0-127) and Latin-1 (128-255)
-        result = []
-        for char in text:
-            code = ord(char)
-            if code <= 255:  # ASCII and Latin-1 only
-                result.append(char)
-            # Skip all emojis and other Unicode characters
-
-        cleaned = ''.join(result).strip()
-        return cleaned if cleaned else "Content"
-
-    def _get_page_size(self, page_size='A4', orientation='portrait'):
-        """Get page size tuple from string"""
+    def _get_page_format(self, page_size='A4'):
+        """Get page format for Playwright"""
         if page_size == 'LETTER':
-            base_size = letter
-        else:
-            base_size = A4
-
-        if orientation == 'landscape':
-            return (base_size[1], base_size[0])
-        return base_size
+            return 'Letter'
+        return 'A4'
 
     def generate_pdf(
         self,
@@ -59,102 +35,148 @@ class PDFGenerator:
         margin: int = 50
     ) -> BytesIO:
         """
-        Generate a single PDF using ReportLab
+        Generate a single PDF using Playwright with full emoji support
 
         Args:
             airline: Airline name (for metadata)
-            title: Document title
-            content: Document content
+            title: Document title (emojis fully supported)
+            content: Document content (emojis fully supported)
             page_size: 'A4' or 'LETTER'
             orientation: 'portrait' or 'landscape'
             font_size: Base font size
-            margin: Page margin in points
+            margin: Page margin in mm
 
         Returns:
             BytesIO buffer containing PDF data
         """
 
         try:
-            # Remove emojis from text for PDF compatibility
-            title_clean = self._remove_emojis(title) if title else ""
-            content_clean = self._remove_emojis(content) if content else ""
-
-            # Create BytesIO buffer for PDF
-            buffer = BytesIO()
-
-            # Get page size
-            page = self._get_page_size(page_size, orientation)
-
-            # Convert margin from points to inches
-            margin_inches = margin / 72.0
-
-            # Create PDF document
-            doc = SimpleDocTemplate(
-                buffer,
-                pagesize=page,
-                rightMargin=margin_inches * inch,
-                leftMargin=margin_inches * inch,
-                topMargin=margin_inches * inch,
-                bottomMargin=margin_inches * inch,
-                title=f'{airline} - {title_clean}',
-                author='Cargo'
-            )
-
-            # Create styles
-            styles = getSampleStyleSheet()
-
-            # Custom title style
-            title_style = ParagraphStyle(
-                'CustomTitle',
-                parent=styles['Heading1'],
-                fontSize=font_size + 7,
-                textColor='#1a1a1a',
-                spaceAfter=30,
-                alignment=TA_CENTER,
-                fontName='Helvetica-Bold'
-            )
-
-            # Custom body style
-            body_style = ParagraphStyle(
-                'CustomBody',
-                parent=styles['BodyText'],
-                fontSize=font_size,
-                leading=font_size * 1.6,
-                spaceAfter=12,
-                alignment=TA_LEFT,
-                fontName='Helvetica'
-            )
-
-            # Build story
-            story = []
-
-            # Add title
-            if title_clean:
-                story.append(Paragraph(title_clean, title_style))
-                story.append(Spacer(1, 0.2 * inch))
-
-            # Add content paragraphs
-            if content_clean:
-                paragraphs = content_clean.split('\n')
-                for para in paragraphs:
-                    para_text = para.strip()
-                    if para_text:
-                        # Escape special characters for PDF
-                        para_text = para_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-                        story.append(Paragraph(para_text, body_style))
-                    else:
-                        story.append(Spacer(1, 0.1 * inch))
-
-            # Build PDF
-            doc.build(story)
-
-            # Get PDF data
-            buffer.seek(0)
-            return buffer
+            # Run async function synchronously
+            pdf_bytes = asyncio.run(self._generate_pdf_async(
+                airline, title, content, page_size, orientation, font_size, margin
+            ))
+            return BytesIO(pdf_bytes)
 
         except Exception as e:
             print(f"Error generating PDF: {str(e)}")
             raise
+
+    async def _generate_pdf_async(
+        self,
+        airline: str,
+        title: str,
+        content: str,
+        page_size: str,
+        orientation: str,
+        font_size: int,
+        margin: int
+    ) -> bytes:
+        """Async PDF generation using Playwright"""
+
+        # Escape HTML special characters but preserve emojis
+        title_safe = self._escape_html(title) if title else ""
+        content_safe = self._escape_html(content) if content else ""
+
+        # Build content paragraphs with emoji support
+        content_paragraphs = ""
+        if content_safe:
+            paragraphs = content_safe.split('\n')
+            for para in paragraphs:
+                para_text = para.strip()
+                if para_text:
+                    content_paragraphs += f'<p>{para_text}</p>\n'
+                else:
+                    content_paragraphs += '<p>&nbsp;</p>\n'
+
+        # Create HTML with full emoji support
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+                    font-size: {font_size}px;
+                    line-height: 1.6;
+                    color: #1a1a1a;
+                    margin: 0;
+                    padding: {margin}mm;
+                }}
+
+                h1 {{
+                    font-size: {font_size + 7}px;
+                    font-weight: bold;
+                    text-align: center;
+                    margin: 0 0 20px 0;
+                    color: #1a1a1a;
+                }}
+
+                p {{
+                    margin: 12px 0;
+                    word-wrap: break-word;
+                    word-break: break-word;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>{title_safe}</h1>
+            {content_paragraphs}
+        </body>
+        </html>
+        """
+
+        async with async_playwright() as p:
+            # Launch Chromium browser
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage'
+                ]
+            )
+
+            try:
+                page = await browser.new_page()
+
+                # Set content with emoji font support
+                await page.set_content(html_content, wait_until='networkidle')
+
+                # Generate PDF with emoji support
+                page_format = self._get_page_format(page_size)
+                margin_mm = f"{margin}mm"
+
+                pdf_bytes = await page.pdf(
+                    format=page_format,
+                    margin={
+                        'top': margin_mm,
+                        'bottom': margin_mm,
+                        'left': margin_mm,
+                        'right': margin_mm
+                    },
+                    landscape=(orientation == 'landscape'),
+                    print_background=True
+                )
+
+                await page.close()
+                return pdf_bytes
+
+            finally:
+                await browser.close()
+
+    def _escape_html(self, text: str) -> str:
+        """Escape HTML special characters but preserve emojis"""
+        if not text:
+            return text
+
+        text = text.replace('&', '&amp;')
+        text = text.replace('<', '&lt;')
+        text = text.replace('>', '&gt;')
+        text = text.replace('"', '&quot;')
+        text = text.replace("'", '&#39;')
+
+        return text
 
     def sanitize_filename(self, filename: str) -> str:
         """
@@ -164,16 +186,13 @@ class PDFGenerator:
             filename: Original filename
 
         Returns:
-            Safe filename
+            Safe filename with emojis preserved where possible
         """
-        # Remove emojis from filename
-        filename = self._remove_emojis(filename)
-
         # Remove or replace invalid characters
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
 
-        # Remove control characters
-        filename = ''.join(char for char in filename if ord(char) >= 32)
+        # Remove control characters but keep emojis
+        filename = ''.join(char for char in filename if ord(char) >= 32 or char in '\n\t')
 
         # Limit length
         name, ext = os.path.splitext(filename)
