@@ -24,10 +24,16 @@ TEMPLATES_FOLDER = os.path.join(os.path.dirname(__file__), 'templates_data')
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 
 # Database Configuration
-DATABASE_URL = os.environ.get(
-    'DATABASE_URL',
-    'sqlite:///' + os.path.join(os.path.dirname(__file__), 'cargo.db')
-)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+# If DATABASE_URL not set, use SQLite fallback (for local development)
+if not DATABASE_URL:
+    DATABASE_URL = 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'cargo.db')
+else:
+    # Convert PostgreSQL URL format if needed (Neon uses psycopg2)
+    if DATABASE_URL.startswith('postgres://'):
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
 SQLALCHEMY_DATABASE_URI = DATABASE_URL
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 

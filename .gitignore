@@ -48,3 +48,6 @@ Thumbs.db
 # Generated files
 generated_pdfs/
 temp/
+.neon
+.env.local
+node_modules/
