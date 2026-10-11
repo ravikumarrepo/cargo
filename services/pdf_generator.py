@@ -1,7 +1,8 @@
 """
 PDF Generator Service
-Handles PDF generation with emoji support using ReportLab
+Handles PDF generation using ReportLab
 Works on all platforms including Render (no Chrome needed)
+Emojis are automatically removed for PDF compatibility
 """
 
 from reportlab.lib.pagesizes import A4, letter
@@ -9,47 +10,48 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 import os
 import re
-import sys
-
-# Try to register emoji-supporting fonts
-def _setup_fonts():
-    """Setup fonts with emoji support"""
-    try:
-        # Try to find and register DejaVu Sans font (has good emoji support)
-        font_paths = [
-            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux
-            'C:\\Windows\\Fonts\\arial.ttf',  # Windows
-            '/System/Library/Fonts/Arial.ttf',  # macOS
-            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # Linux alt
-        ]
-
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    pdfmetrics.registerFont(TTFont('CustomFont', font_path))
-                    return 'CustomFont'
-                except:
-                    pass
-    except:
-        pass
-
-    # Fallback to Helvetica (standard)
-    return 'Helvetica'
-
-# Initialize font on module load
-_CUSTOM_FONT = _setup_fonts()
+import unicodedata
 
 
 class PDFGenerator:
-    """Service for generating PDFs with emoji support using ReportLab"""
+    """Service for generating PDFs using ReportLab"""
 
     def __init__(self):
         pass
+
+    @staticmethod
+    def _is_emoji(char):
+        """Check if character is an emoji"""
+        try:
+            return unicodedata.category(char) in ('So', 'Sk')
+        except:
+            return False
+
+    @staticmethod
+    def _remove_emojis(text):
+        """Remove emojis from text, keeping other characters"""
+        if not text:
+            return text
+
+        # Remove emoji characters
+        result = []
+        for char in text:
+            # Skip emoji unicode ranges
+            code = ord(char)
+            # Common emoji ranges to skip
+            if (0x1F300 <= code <= 0x1F9FF or  # Emoticons, symbols, pictographs
+                0x2600 <= code <= 0x27BF or    # Misc symbols and dingbats
+                0x2300 <= code <= 0x23FF or    # Misc technical
+                PDFGenerator._is_emoji(char)):
+                continue
+            result.append(char)
+
+        cleaned = ''.join(result).strip()
+        # If all characters were emojis, return a placeholder
+        return cleaned if cleaned else "[content]"
 
     def _get_page_size(self, page_size='A4', orientation='portrait'):
         """Get page size tuple from string"""
@@ -73,7 +75,7 @@ class PDFGenerator:
         margin: int = 50
     ) -> BytesIO:
         """
-        Generate a single PDF with emoji support using ReportLab
+        Generate a single PDF using ReportLab
 
         Args:
             airline: Airline name (for metadata)
@@ -89,6 +91,10 @@ class PDFGenerator:
         """
 
         try:
+            # Clean emojis from text for PDF compatibility
+            title_clean = self._remove_emojis(title) if title else ""
+            content_clean = self._remove_emojis(content) if content else ""
+
             # Create BytesIO buffer for PDF
             buffer = BytesIO()
 
@@ -106,14 +112,14 @@ class PDFGenerator:
                 leftMargin=margin_inches * inch,
                 topMargin=margin_inches * inch,
                 bottomMargin=margin_inches * inch,
-                title=f'{airline} - {title}',
+                title=f'{airline} - {title_clean}',
                 author='Cargo'
             )
 
             # Create styles
             styles = getSampleStyleSheet()
 
-            # Custom title style - use Helvetica (safe fallback)
+            # Custom title style
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
@@ -124,7 +130,7 @@ class PDFGenerator:
                 fontName='Helvetica-Bold'
             )
 
-            # Custom body style - use Helvetica (safe fallback)
+            # Custom body style
             body_style = ParagraphStyle(
                 'CustomBody',
                 parent=styles['BodyText'],
@@ -139,19 +145,17 @@ class PDFGenerator:
             story = []
 
             # Add title
-            if title:
-                # Keep emojis in title
-                title_text = title
-                story.append(Paragraph(title_text, title_style))
+            if title_clean:
+                story.append(Paragraph(title_clean, title_style))
                 story.append(Spacer(1, 0.2 * inch))
 
             # Add content paragraphs
-            if content:
-                paragraphs = content.split('\n')
+            if content_clean:
+                paragraphs = content_clean.split('\n')
                 for para in paragraphs:
                     para_text = para.strip()
                     if para_text:
-                        # Escape special characters but keep emojis
+                        # Escape special characters
                         para_text = para_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                         story.append(Paragraph(para_text, body_style))
                     else:
@@ -178,6 +182,9 @@ class PDFGenerator:
         Returns:
             Safe filename
         """
+        # Remove emojis from filename
+        filename = self._remove_emojis(filename)
+
         # Remove or replace invalid characters
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
 
