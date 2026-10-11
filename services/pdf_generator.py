@@ -2,7 +2,7 @@
 PDF Generator Service
 Handles PDF generation using ReportLab
 Works on all platforms including Render (no Chrome needed)
-Emojis are automatically removed for PDF compatibility
+Emojis converted to text placeholders for clean rendering
 """
 
 from reportlab.lib.pagesizes import A4, letter
@@ -19,28 +19,45 @@ class PDFGenerator:
     """Service for generating PDFs using ReportLab"""
 
     def __init__(self):
-        pass
+        # Common emoji to text replacements for clean PDF rendering
+        self.emoji_replacements = {
+            '✈️': '✓',
+            '✈': '✓',
+            '🎉': '★',
+            '💰': '$',
+            '⭐': '★',
+            '✓': '✓',
+            '❤️': '❤',
+            '❤': '❤',
+            '🚀': '→',
+            '📱': '◎',
+            '💻': '◎',
+            '📧': '@',
+            '🔔': '◆',
+            '🏦': '□',
+            '💳': '□',
+            '💵': '$',
+            '🌍': '◯',
+            '🗺️': '◯',
+            '🛫': '✓',
+            '🛬': '✓',
+            '👍': '✓',
+            '✨': '*',
+            '🎊': '*',
+        }
 
-    @staticmethod
-    def _remove_emojis(text):
-        """Remove emojis from text, keeping only ASCII and common Latin characters"""
+    def _replace_emojis_with_symbols(self, text):
+        """Replace emojis with clean ASCII symbols"""
         if not text:
             return text
 
-        result = []
-        for char in text:
-            code = ord(char)
-            # Keep only ASCII letters, digits, punctuation, spaces, and common Latin-1
-            # ASCII: 0-127, Latin-1 Supplement: 128-255
-            if code <= 255:
-                result.append(char)
-            # Skip all emoji ranges and symbol characters
-            # Emoji ranges: 0x1F300-0x1F9FF, 0x2600-0x27BF, 0x2300-0x23FF, etc.
-            # Keep nothing above Unicode 255
+        result = text
+        for emoji, symbol in self.emoji_replacements.items():
+            result = result.replace(emoji, symbol)
 
-        cleaned = ''.join(result).strip()
-        # If everything was stripped, return placeholder
-        return cleaned if cleaned else "[content]"
+        # Remove any remaining non-ASCII/Latin characters (other emojis)
+        result = ''.join(char if ord(char) <= 255 else '' for char in result)
+        return result.strip()
 
     def _get_page_size(self, page_size='A4', orientation='portrait'):
         """Get page size tuple from string"""
@@ -80,9 +97,9 @@ class PDFGenerator:
         """
 
         try:
-            # Clean emojis from text for PDF compatibility
-            title_clean = self._remove_emojis(title) if title else ""
-            content_clean = self._remove_emojis(content) if content else ""
+            # Convert emojis to clean symbols for PDF rendering
+            title_clean = self._replace_emojis_with_symbols(title) if title else ""
+            content_clean = self._replace_emojis_with_symbols(content) if content else ""
 
             # Create BytesIO buffer for PDF
             buffer = BytesIO()
@@ -171,8 +188,8 @@ class PDFGenerator:
         Returns:
             Safe filename
         """
-        # Remove emojis from filename
-        filename = self._remove_emojis(filename)
+        # Replace emojis in filename
+        filename = self._replace_emojis_with_symbols(filename)
 
         # Remove or replace invalid characters
         filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
