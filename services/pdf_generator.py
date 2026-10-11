@@ -161,7 +161,7 @@ class PDFGenerator:
 
             # Add title
             if title:
-                story.append(Paragraph(self._escape_html(title), title_style))
+                story.append(Paragraph(self._prepare_paragraph(title, font_size + 7), title_style))
                 story.append(Spacer(1, 0.2 * inch))
 
             # Add content paragraphs
@@ -171,7 +171,7 @@ class PDFGenerator:
                     para_text = para.strip()
                     if para_text:
                         # Escape special characters but keep emojis
-                        para_text = self._escape_html(para_text)
+                        para_text = self._prepare_paragraph(para_text, font_size)
                         story.append(Paragraph(para_text, body_style))
                     else:
                         story.append(Spacer(1, 0.1 * inch))
@@ -197,6 +197,65 @@ class PDFGenerator:
         text = text.replace('>', '&gt;')
 
         return text
+
+
+    def _prepare_paragraph(self, text: str, font_size: int = 11) -> str:
+        """Replace emojis with inline PNG images for PDF rendering."""
+        import emoji as emoji_lib
+
+        if not text:
+            return ""
+
+        matches = emoji_lib.emoji_list(text)
+        parts = []
+        last = 0
+
+        cache_dir = "/tmp/cargo_emoji_cache"
+        os.makedirs(cache_dir, exist_ok=True)
+
+        for match in matches:
+            start = match["match_start"]
+            end = match["match_end"]
+            emoji_char = match["emoji"]
+
+            # Escape the ordinary text before this emoji.
+            parts.append(self._escape_html(text[last:start]))
+
+            # Create the Twemoji PNG filename.
+            codepoints = "-".join(
+                f"{ord(char):x}"
+                for char in emoji_char
+                if ord(char) != 0xFE0F
+            )
+
+            image_path = os.path.join(cache_dir, f"{codepoints}.png")
+            image_url = (
+                "https://cdnjs.cloudflare.com/ajax/libs/"
+                f"twemoji/14.0.2/72x72/{codepoints}.png"
+            )
+
+            try:
+                if not os.path.exists(image_path):
+                    with urllib.request.urlopen(image_url, timeout=5) as response:
+                        image_data = response.read()
+
+                    with open(image_path, "wb") as image_file:
+                        image_file.write(image_data)
+
+                size = max(10, font_size)
+                parts.append(
+                    f'<img src="{image_path}" width="{size}" '
+                    f'height="{size}" valign="middle"/>'
+                )
+            except Exception as error:
+                print(f"Could not load emoji {emoji_char}: {error}")
+                parts.append("[emoji]")
+
+            last = end
+
+        parts.append(self._escape_html(text[last:]))
+        return "".join(parts)
+
 
     def sanitize_filename(self, filename: str) -> str:
         """
