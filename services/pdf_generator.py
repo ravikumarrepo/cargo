@@ -7,11 +7,42 @@ Works on all platforms including Render (no Chrome needed)
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
 import os
 import re
+import sys
+
+# Try to register emoji-supporting fonts
+def _setup_fonts():
+    """Setup fonts with emoji support"""
+    try:
+        # Try to find and register DejaVu Sans font (has good emoji support)
+        font_paths = [
+            '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',  # Linux
+            'C:\\Windows\\Fonts\\arial.ttf',  # Windows
+            '/System/Library/Fonts/Arial.ttf',  # macOS
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',  # Linux alt
+        ]
+
+        for font_path in font_paths:
+            if os.path.exists(font_path):
+                try:
+                    pdfmetrics.registerFont(TTFont('CustomFont', font_path))
+                    return 'CustomFont'
+                except:
+                    pass
+    except:
+        pass
+
+    # Fallback to Helvetica (standard)
+    return 'Helvetica'
+
+# Initialize font on module load
+_CUSTOM_FONT = _setup_fonts()
 
 
 class PDFGenerator:
@@ -82,7 +113,7 @@ class PDFGenerator:
             # Create styles
             styles = getSampleStyleSheet()
 
-            # Custom title style
+            # Custom title style - use Helvetica (safe fallback)
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
@@ -93,7 +124,7 @@ class PDFGenerator:
                 fontName='Helvetica-Bold'
             )
 
-            # Custom body style
+            # Custom body style - use Helvetica (safe fallback)
             body_style = ParagraphStyle(
                 'CustomBody',
                 parent=styles['BodyText'],
@@ -109,7 +140,9 @@ class PDFGenerator:
 
             # Add title
             if title:
-                story.append(Paragraph(title, title_style))
+                # Keep emojis in title
+                title_text = title
+                story.append(Paragraph(title_text, title_style))
                 story.append(Spacer(1, 0.2 * inch))
 
             # Add content paragraphs
@@ -118,7 +151,7 @@ class PDFGenerator:
                 for para in paragraphs:
                     para_text = para.strip()
                     if para_text:
-                        # Escape special characters
+                        # Escape special characters but keep emojis
                         para_text = para_text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                         story.append(Paragraph(para_text, body_style))
                     else:
