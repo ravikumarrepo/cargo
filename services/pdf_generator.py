@@ -13,7 +13,6 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from io import BytesIO
 import os
 import re
-import unicodedata
 
 
 class PDFGenerator:
@@ -23,34 +22,24 @@ class PDFGenerator:
         pass
 
     @staticmethod
-    def _is_emoji(char):
-        """Check if character is an emoji"""
-        try:
-            return unicodedata.category(char) in ('So', 'Sk')
-        except:
-            return False
-
-    @staticmethod
     def _remove_emojis(text):
-        """Remove emojis from text, keeping other characters"""
+        """Remove emojis from text, keeping only ASCII and common Latin characters"""
         if not text:
             return text
 
-        # Remove emoji characters
         result = []
         for char in text:
-            # Skip emoji unicode ranges
             code = ord(char)
-            # Common emoji ranges to skip
-            if (0x1F300 <= code <= 0x1F9FF or  # Emoticons, symbols, pictographs
-                0x2600 <= code <= 0x27BF or    # Misc symbols and dingbats
-                0x2300 <= code <= 0x23FF or    # Misc technical
-                PDFGenerator._is_emoji(char)):
-                continue
-            result.append(char)
+            # Keep only ASCII letters, digits, punctuation, spaces, and common Latin-1
+            # ASCII: 0-127, Latin-1 Supplement: 128-255
+            if code <= 255:
+                result.append(char)
+            # Skip all emoji ranges and symbol characters
+            # Emoji ranges: 0x1F300-0x1F9FF, 0x2600-0x27BF, 0x2300-0x23FF, etc.
+            # Keep nothing above Unicode 255
 
         cleaned = ''.join(result).strip()
-        # If all characters were emojis, return a placeholder
+        # If everything was stripped, return placeholder
         return cleaned if cleaned else "[content]"
 
     def _get_page_size(self, page_size='A4', orientation='portrait'):
