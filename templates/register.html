@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <svg class="auth-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+                    <rect x="8" y="10" width="20" height="20" fill="currentColor" opacity="0.2" stroke="currentColor" stroke-width="2" rx="2"/>
+                    <path d="M 18 10 L 23 5 L 33 5 L 28 10 Z" fill="currentColor" opacity="0.6"/>
+                    <path d="M 28 10 L 33 5 L 33 15 L 28 20 Z" fill="currentColor"/>
+                </svg>
+                <h1>Cargo</h1>
+                <p>Create an Account</p>
+            </div>
+
+            <form id="registerForm" class="auth-form">
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input
+                        type="text"
+                        id="fullName"
+                        name="fullName"
+                        required
+                        placeholder="John Doe"
+                        autocomplete="name"
+                    />
+                    <small class="form-hint">Your full name (at least 2 characters)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        required
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        required
+                        placeholder="Enter a strong password"
+                        autocomplete="new-password"
+                    />
+                    <small class="form-hint">
+                        At least 8 characters, with uppercase letter and number
+                    </small>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input
+                        type="password"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        required
+                        placeholder="Confirm your password"
+                        autocomplete="new-password"
+                    />
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-large">Create Account</button>
+                </div>
+
+                <div class="form-divider"></div>
+
+                <div class="form-footer">
+                    <p>Already have an account? <a href="{{ url_for('login_page') }}">Sign in</a></p>
+                </div>
+            </form>
+
+            <div id="errorMessage" class="auth-message auth-message-error" style="display: none;"></div>
+            <div id="successMessage" class="auth-message auth-message-success" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Client-side validation helpers
+        function validateEmail(email) {
+            const pattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return pattern.test(email);
+        }
+
+        function validatePassword(password) {
+            if (password.length < 8) return false;
+            if (!(/[A-Z]/.test(password))) return false;
+            if (!(/[0-9]/.test(password))) return false;
+            return true;
+        }
+
+        function validateFullName(name) {
+            return name.trim().length >= 2;
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fullName = document.getElementById('fullName').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+
+            // Client-side validation
+            let errors = [];
+
+            if (!validateFullName(fullName)) {
+                errors.push('Full name must be at least 2 characters');
+            }
+
+            if (!validateEmail(email)) {
+                errors.push('Please enter a valid email address');
+            }
+
+            if (!validatePassword(password)) {
+                errors.push('Password must be at least 8 characters with uppercase letter and number');
+            }
+
+            if (password !== confirmPassword) {
+                errors.push('Passwords do not match');
+            }
+
+            if (errors.length > 0) {
+                errorMessage.textContent = errors[0];
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email,
+                        fullName,
+                        password,
+                        confirmPassword
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    successMessage.innerHTML = `
+                        <strong>Account created successfully!</strong>
+                        <p>${result.message}</p>
+                        <p style="margin-top: 1rem;">
+                            <a href="${new URL('/login', window.location.origin).href}" class="btn btn-secondary" style="display: inline-block;">
+                                Return to Login
+                            </a>
+                        </p>
+                    `;
+                    successMessage.style.display = 'block';
+                    document.getElementById('registerForm').style.display = 'none';
+                } else {
+                    errorMessage.textContent = result.error || 'Registration failed';
+                    errorMessage.style.display = 'block';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Network error. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

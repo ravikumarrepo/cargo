@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-header">
+                <svg class="auth-logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+                    <rect x="8" y="10" width="20" height="20" fill="currentColor" opacity="0.2" stroke="currentColor" stroke-width="2" rx="2"/>
+                    <path d="M 18 10 L 23 5 L 33 5 L 28 10 Z" fill="currentColor" opacity="0.6"/>
+                    <path d="M 28 10 L 33 5 L 33 15 L 28 20 Z" fill="currentColor"/>
+                </svg>
+                <h1>Cargo</h1>
+                <p>Bulk Content Generator</p>
+            </div>
+
+            <form id="loginForm" class="auth-form">
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        required
+                        placeholder="you@example.com"
+                        autocomplete="email"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        required
+                        placeholder="Enter your password"
+                        autocomplete="current-password"
+                    />
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-large">Sign In</button>
+                </div>
+
+                <div class="form-divider"></div>
+
+                <div class="form-footer">
+                    <p>Don't have an account? <a href="{{ url_for('register_page') }}">Create one</a></p>
+                </div>
+            </form>
+
+            <div id="errorMessage" class="auth-message auth-message-error" style="display: none;"></div>
+            <div id="statusMessage" class="auth-message auth-message-info" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorMessage = document.getElementById('errorMessage');
+            const statusMessage = document.getElementById('statusMessage');
+
+            errorMessage.style.display = 'none';
+            statusMessage.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Store token
+                    localStorage.setItem('auth_token', result.token);
+                    localStorage.setItem('current_user', JSON.stringify(result.user));
+
+                    // Redirect to app
+                    window.location.href = '/';
+                } else {
+                    // Check for status-specific redirects
+                    if (result.status === 'pending') {
+                        window.location.href = '/pending';
+                    } else if (result.status === 'rejected') {
+                        const reason = encodeURIComponent(result.rejected_reason || '');
+                        window.location.href = `/rejected?reason=${reason}`;
+                    } else if (result.status === 'revoked') {
+                        window.location.href = '/revoked';
+                    } else if (result.status === 'suspended') {
+                        window.location.href = '/suspended';
+                    } else {
+                        errorMessage.textContent = result.error || 'Login failed';
+                        errorMessage.style.display = 'block';
+                    }
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Network error. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

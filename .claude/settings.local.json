@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python tests.py)",
+      "Bash(pip install *)",
+      "Bash(python -m playwright install chromium)"
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration Declined - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="status-card rejected">
+            <div class="status-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+            </div>
+
+            <h1>Registration Declined</h1>
+            <p class="status-subtitle">Your application could not be approved</p>
+
+            <div class="status-details">
+                <p>
+                    Unfortunately, your registration request has been declined by an administrator.
+                </p>
+                {% if reason %}
+                <div class="status-reason">
+                    <strong>Reason:</strong>
+                    <p>{{ reason }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="status-actions">
+                <a href="{{ url_for('login_page') }}" class="btn btn-secondary">Return to Login</a>
+            </div>
+
+            <div class="status-help">
+                <p>
+                    <strong>Need assistance?</strong> Contact your administrator to discuss this decision or to reapply.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Decode reason from URL
+        const params = new URLSearchParams(window.location.search);
+        const reason = params.get('reason');
+        if (reason) {
+            document.querySelector('.status-reason p').textContent = decodeURIComponent(reason);
+        }
+    </script>
+</body>
+</html>

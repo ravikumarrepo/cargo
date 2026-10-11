@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40" viewBox="0 0 120 40">
+  <!-- Box/Package Icon representing "Cargo" -->
+  <rect x="8" y="10" width="20" height="20" fill="#0ea5e9" stroke="#0284c7" stroke-width="2" rx="2"/>
+  <path d="M 18 10 L 23 5 L 33 5 L 28 10 Z" fill="#38bdf8"/>
+  <path d="M 28 10 L 33 5 L 33 15 L 28 20 Z" fill="#0284c7"/>
+
+  <!-- Text "Cargo" -->
+  <text x="38" y="27" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="currentColor">Cargo</text>
+</svg>

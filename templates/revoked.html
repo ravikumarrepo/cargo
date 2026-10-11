@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Revoked - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="status-card revoked">
+            <div class="status-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+
+            <h1>Access Revoked</h1>
+            <p class="status-subtitle">Your account access has been revoked</p>
+
+            <div class="status-details">
+                <p>
+                    Your access to Cargo has been revoked by an administrator. You are no longer able to use this service.
+                </p>
+                <p>
+                    If you believe this is in error or would like to appeal this decision, please contact your administrator.
+                </p>
+            </div>
+
+            <div class="status-actions">
+                <a href="{{ url_for('login_page') }}" class="btn btn-secondary">Return to Login</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

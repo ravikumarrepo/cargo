@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>1
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-brand">
+                <h1 class="logo">
+                    <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
+                        <rect x="8" y="10" width="20" height="20" fill="currentColor" opacity="0.2" stroke="currentColor" stroke-width="2" rx="2"/>
+                        <path d="M 18 10 L 23 5 L 33 5 L 28 10 Z" fill="currentColor" opacity="0.6"/>
+                        <path d="M 28 10 L 33 5 L 33 15 L 28 20 Z" fill="currentColor"/>
+                    </svg>
+                    Cargo
+                </h1>
+                <p class="tagline">Bulk Content Generator</p>
+            </div>
+            <div class="nav-actions">
+                <button id="themeToggle" class="theme-toggle" title="Toggle theme">
+                    <svg class="theme-icon theme-icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                    <svg class="theme-icon theme-icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                </button>
+                <div id="authSection" class="auth-section">
+                    <span id="userName" class="user-name"></span>
+                    <button id="adminBtn" class="btn btn-secondary" style="display: none;">Admin</button>
+                    <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+                </div>
+                <button id="newProjectBtn" class="btn btn-secondary">New Project</button>
+                <button id="templatesBtn" class="btn btn-secondary">Templates</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <div class="container">
+            <!-- Step 1: Content Input -->
+            <section id="inputSection" class="card">
+                <div class="card-header">
+                    <h2>1. Enter Your Content</h2>
+                    <p>Add your title and content with airline name placeholders</p>
+                </div>
+                <div class="card-body">
+                    <!-- Title Input -->
+                    <div class="form-group">
+                        <label for="titleInput">Title</label>
+                        <textarea
+                            id="titleInput"
+                            class="form-control"
+                            rows="2"
+                            placeholder="Enter your title here. Use {{AIRLINE_NAME}} as placeholder..."
+                        ></textarea>
+                        <div class="form-help">
+                            <span id="titleCharCount">0 characters</span>
+                        </div>
+                    </div>
+
+                    <!-- Content Input -->
+                    <div class="form-group">
+                        <label for="contentInput">Content</label>
+                        <textarea
+                            id="contentInput"
+                            class="form-control"
+                            rows="12"
+                            placeholder="Enter your content here. Use {{AIRLINE_NAME}} where you want the airline name to appear...
+
+Example:
+{{AIRLINE_NAME}} is one of the leading airlines in the industry. Book your next flight with {{AIRLINE_NAME}} today! ✈️"
+                        ></textarea>
+                        <div class="form-help">
+                            <span id="contentCharCount">0 characters</span>
+                            <span id="contentLineCount">0 lines</span>
+                        </div>
+                    </div>
+
+                    <!-- Replacement Settings -->
+                    <div class="settings-panel">
+                        <h3>Replacement Settings</h3>
+
+                        <div class="form-group">
+                            <label>Replacement Mode</label>
+                            <div class="radio-group">
+                                <label class="radio-label">
+                                    <input type="radio" name="replacementMode" value="placeholder" checked>
+                                    <span>Placeholder Mode</span>
+                                    <small>Replace {{AIRLINE_NAME}} with each airline</small>
+                                </label>
+                                <label class="radio-label">
+                                    <input type="radio" name="replacementMode" value="original">
+                                    <span>Original Name Mode</span>
+                                    <small>Replace an existing airline name with each target airline</small>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="originalNameGroup" class="form-group" style="display: none;">
+                            <label for="originalNameInput">Original Airline Name</label>
+                            <input
+                                type="text"
+                                id="originalNameInput"
+                                class="form-control"
+                                placeholder="e.g., Air India"
+                            >
+                            <small>This name will be replaced with each target airline</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="caseSensitiveCheck">
+                                <span>Case-sensitive matching</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Airline List -->
+            <section id="airlineSection" class="card">
+                <div class="card-header">
+                    <h2>2. Add Airlines</h2>
+                    <p>Enter airline names (one per line) or upload a file</p>
+                </div>
+                <div class="card-body">
+                    <!-- Airline Input Methods -->
+                    <div class="input-tabs">
+                        <button class="tab-btn active" data-tab="text">Paste Text</button>
+                        <button class="tab-btn" data-tab="file">Upload File</button>
+                    </div>
+
+                    <!-- Text Input Tab -->
+                    <div id="textTab" class="tab-content active">
+                        <div class="form-group">
+                            <textarea
+                                id="airlineTextInput"
+                                class="form-control"
+                                rows="8"
+                                placeholder="Enter airline names (one per line):
+
+Air India
+IndiGo
+SpiceJet
+Emirates
+Qatar Airways"
+                            ></textarea>
+                        </div>
+                        <button id="parseTextBtn" class="btn btn-primary">Parse Airlines</button>
+                    </div>
+
+                    <!-- File Upload Tab -->
+                    <div id="fileTab" class="tab-content">
+                        <div class="file-upload-area">
+                            <input type="file" id="airlineFileInput" accept=".txt,.csv" hidden>
+                            <label for="airlineFileInput" class="file-upload-label">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span>Click to upload CSV or TXT file</span>
+                                <small>or drag and drop</small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Airlines List Display -->
+                    <div id="airlinesDisplay" class="airlines-display" style="display: none;">
+                        <div class="airlines-header">
+                            <h3>Airlines (<span id="airlineCount">0</span>)</h3>
+                            <div class="airlines-actions">
+                                <input type="text" id="airlineSearchInput" class="form-control-sm" placeholder="Search airlines...">
+                                <button id="clearAirlinesBtn" class="btn btn-sm btn-secondary">Clear All</button>
+                            </div>
+                        </div>
+                        <div id="airlinesList" class="airlines-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Output Mode Selection -->
+            <section id="outputSection" class="card">
+                <div class="card-header">
+                    <h2>3. Choose Output Mode</h2>
+                    <p>Select how you want to receive the generated content</p>
+                </div>
+                <div class="card-body">
+                    <div class="output-modes">
+                        <label class="output-mode-card">
+                            <input type="radio" name="outputMode" value="posts" checked>
+                            <div class="mode-content">
+                                <h3>📋 Copy-Ready Posts</h3>
+                                <p>Navigate through posts and copy to clipboard</p>
+                            </div>
+                        </label>
+                        <label class="output-mode-card">
+                            <input type="radio" name="outputMode" value="pdfs">
+                            <div class="mode-content">
+                                <h3>📄 Bulk PDFs</h3>
+                                <p>Generate separate PDFs and download as ZIP</p>
+                            </div>
+                        </label>
+                        <label class="output-mode-card">
+                            <input type="radio" name="outputMode" value="both">
+                            <div class="mode-content">
+                                <h3>🚀 Both</h3>
+                                <p>Get copy-ready posts + downloadable PDFs</p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- PDF Settings (shown when PDF or Both selected) -->
+                    <div id="pdfSettings" class="settings-panel" style="display: none;">
+                        <h3>PDF Settings</h3>
+                        <div class="settings-grid">
+                            <div class="form-group">
+                                <label for="pageSizeSelect">Page Size</label>
+                                <select id="pageSizeSelect" class="form-control">
+                                    <option value="A4" selected>A4</option>
+                                    <option value="LETTER">Letter</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="orientationSelect">Orientation</label>
+                                <select id="orientationSelect" class="form-control">
+                                    <option value="portrait" selected>Portrait</option>
+                                    <option value="landscape">Landscape</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="fontSizeInput">Font Size</label>
+                                <input type="number" id="fontSizeInput" class="form-control" value="11" min="8" max="18">
+                            </div>
+                            <div class="form-group">
+                                <label for="marginInput">Margin (pt)</label>
+                                <input type="number" id="marginInput" class="form-control" value="50" min="20" max="100">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Action Buttons -->
+            <section class="action-section">
+                <div class="action-buttons">
+                    <button id="previewBtn" class="btn btn-secondary">Preview</button>
+                    <button id="saveTemplateBtn" class="btn btn-secondary">Save as Template</button>
+                    <button id="generateBtn" class="btn btn-primary btn-lg">Generate Content</button>
+                </div>
+            </section>
+
+            <!-- Results Section (hidden initially) -->
+            <section id="resultsSection" class="card" style="display: none;">
+                <div class="card-header">
+                    <h2>Generated Content</h2>
+                    <div class="results-summary">
+                        <span id="resultsSummary"></span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Posts View -->
+                    <div id="postsView" style="display: none;">
+                        <div class="posts-navigation">
+                            <button id="prevPostBtn" class="btn btn-secondary">← Previous</button>
+                            <span id="postCounter" class="post-counter"></span>
+                            <button id="nextPostBtn" class="btn btn-secondary">Next →</button>
+                        </div>
+
+                        <div id="currentPost" class="post-display">
+                            <div class="post-header">
+                                <h3 id="postAirline"></h3>
+                                <div class="post-actions">
+                                    <button id="copyTitleBtn" class="btn btn-sm btn-secondary">Copy Title</button>
+                                    <button id="copyContentBtn" class="btn btn-sm btn-secondary">Copy Content</button>
+                                    <button id="copyBothBtn" class="btn btn-sm btn-primary">Copy Both</button>
+                                </div>
+                            </div>
+                            <div class="post-content">
+                                <div class="content-block">
+                                    <label>Title:</label>
+                                    <div id="postTitle" class="content-text"></div>
+                                </div>
+                                <div class="content-block">
+                                    <label>Content:</label>
+                                    <div id="postContent" class="content-text"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bulk-actions">
+                            <button id="copyAllPostsBtn" class="btn btn-secondary">Copy All Posts</button>
+                            <button id="exportPostsBtn" class="btn btn-secondary">Export as JSON</button>
+                        </div>
+                    </div>
+
+                    <!-- PDFs View -->
+                    <div id="pdfsView" style="display: none;">
+                        <div class="pdfs-progress">
+                            <div id="generationProgress" class="progress-bar">
+                                <div id="generationProgressBar" class="progress-fill"></div>
+                            </div>
+                            <p id="generationStatus"></p>
+                        </div>
+
+                        <div id="pdfsReady" style="display: none;">
+                            <div class="success-message">
+                                ✅ All PDFs generated successfully!
+                            </div>
+                            <div class="download-actions">
+                                <button id="downloadAllPdfsBtn" class="btn btn-primary btn-lg">Download All PDFs (ZIP)</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>Created with 🧠 by Ravi</p>
+        </div>
+    </footer>
+
+    <!-- Modals -->
+    <!-- Preview Modal -->
+    <div id="previewModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Preview</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="previewAirlineSelect">Select Airline for Preview</label>
+                    <select id="previewAirlineSelect" class="form-control"></select>
+                </div>
+                <div id="previewContent">
+                    <div class="preview-section">
+                        <h3>Original Title</h3>
+                        <div id="previewOriginalTitle" class="preview-text"></div>
+                    </div>
+                    <div class="preview-section">
+                        <h3>Generated Title</h3>
+                        <div id="previewGeneratedTitle" class="preview-text highlight"></div>
+                    </div>
+                    <div class="preview-section">
+                        <h3>Original Content</h3>
+                        <div id="previewOriginalContent" class="preview-text"></div>
+                    </div>
+                    <div class="preview-section">
+                        <h3>Generated Content</h3>
+                        <div id="previewGeneratedContent" class="preview-text highlight"></div>
+                    </div>
+                    <div class="preview-stats">
+                        <span id="previewStats"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closePreviewBtn" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Modal -->
+    <div id="templateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Save Template</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="templateNameInput">Template Name</label>
+                    <input type="text" id="templateNameInput" class="form-control" placeholder="My Template">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="cancelTemplateBtn" class="btn btn-secondary">Cancel</button>
+                <button id="confirmSaveTemplateBtn" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Templates List Modal -->
+    <div id="templatesListModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2>Templates</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="templatesList"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeTemplatesBtn" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/clipboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/generator.js') }}"></script>
+</body>
+</html>

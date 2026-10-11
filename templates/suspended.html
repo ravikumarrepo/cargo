@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Suspended - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="status-card suspended">
+            <div class="status-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9 9h6v6H9z"></path>
+                </svg>
+            </div>
+
+            <h1>Account Suspended</h1>
+            <p class="status-subtitle">Your account is temporarily disabled</p>
+
+            <div class="status-details">
+                <p>
+                    Your account has been temporarily suspended by an administrator.
+                </p>
+                <p>
+                    Your access to Cargo is currently restricted. Please contact your administrator for more information
+                    about the suspension and when your account will be restored.
+                </p>
+            </div>
+
+            <div class="status-actions">
+                <a href="{{ url_for('login_page') }}" class="btn btn-secondary">Return to Login</a>
+            </div>
+
+            <div class="status-help">
+                <p>
+                    <strong>Questions?</strong> Reach out to your administrator to discuss your account status.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

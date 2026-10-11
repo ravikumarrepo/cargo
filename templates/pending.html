@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Pending - Cargo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <div class="status-card pending">
+            <div class="status-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+
+            <h1>Account Pending Approval</h1>
+            <p class="status-subtitle">Your registration is awaiting administrator review</p>
+
+            <div class="status-details">
+                <p>
+                    Thank you for registering with Cargo! Your account has been created and is currently pending
+                    administrator approval.
+                </p>
+                <p>
+                    You'll be able to access Cargo once an administrator has approved your account. This typically
+                    takes a few hours.
+                </p>
+            </div>
+
+            <div class="status-actions">
+                <a href="{{ url_for('login_page') }}" class="btn btn-secondary">Return to Login</a>
+            </div>
+
+            <div class="status-help">
+                <p>
+                    <strong>Questions?</strong> Contact your administrator for more information about your account status.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
