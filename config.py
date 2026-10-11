@@ -24,7 +24,10 @@ TEMPLATES_FOLDER = os.path.join(os.path.dirname(__file__), 'templates_data')
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 
 # Database Configuration
-DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///cargo.db')
+DATABASE_URL = os.environ.get(
+    'DATABASE_URL',
+    'sqlite:///' + os.path.join(os.path.dirname(__file__), 'cargo.db')
+)
 SQLALCHEMY_DATABASE_URI = DATABASE_URL
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
