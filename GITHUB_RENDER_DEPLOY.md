@@ -131,19 +131,24 @@ Fill in the form:
 Scroll down to "Environment" section. Add these variables:
 
 ```
-ADMIN_EMAIL = dmtoravi@gmail.com
-ADMIN_PASSWORD = ravi993440@
-FLASK_SECRET_KEY = (generate random - see below)
+ADMIN_EMAIL = <your admin email>
+ADMIN_PASSWORD = <choose a strong password — do NOT commit it anywhere>
+SECRET_KEY = (generate random - see below)
 FLASK_DEBUG = False
-DATABASE_URL = sqlite:///cargo.db
+DATABASE_URL = <your Neon pooled connection string>
 SESSION_TIMEOUT = 900
 REFRESH_TOKEN_EXPIRY = 604800
 ```
 
-**Generate FLASK_SECRET_KEY**:
+**Generate SECRET_KEY**:
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
+
+> ⚠️ **Note**: The app reads `SECRET_KEY` (not `FLASK_SECRET_KEY`), and the
+> admin password in this guide previously appeared here in plain text —
+> it has been removed. If you used the password shown in earlier versions
+> of this file, **change it immediately**.
 
 ### 2.5 Deploy
 
@@ -285,7 +290,7 @@ python scripts/init_admin.py
 2. You'll be redirected to login
 3. Enter credentials:
    - Email: `dmtoravi@gmail.com`
-   - Password: `ravi993440@`
+   - Password: *(the admin password you set in your environment variables)*
 4. Click "Admin" button
 5. Test admin dashboard
 

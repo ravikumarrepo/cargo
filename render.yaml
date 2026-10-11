@@ -1,0 +1,24 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: push to GitHub, then "New +" → "Blueprint" in the Render dashboard.
+services:
+  - type: web
+    name: cargo-pdf-generator
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Bind to $PORT (Render requirement) and give PDF rendering room to finish
+    startCommand: gunicorn -w 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.11"
+      - key: FLASK_DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true        # Render generates a strong random value
+      - key: DATABASE_URL
+        sync: false                # set in dashboard: your Neon pooled connection string
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false

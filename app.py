@@ -20,6 +20,7 @@ from services.models import db, User
 from services.auth_service import AuthService
 from services.admin_service import AdminService
 from services.decorators import auth_required, admin_required, get_current_user
+import config
 
 app = Flask(__name__)
 
@@ -30,10 +31,9 @@ app.config.from_object('config')
 db.init_app(app)
 migrate = Migrate(app, db)
 
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'cargo-bulk-content-generator-2024')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
-app.config['UPLOAD_FOLDER'] = 'temp'
-app.config['GENERATED_FOLDER'] = 'generated_pdfs'
+# Runtime overrides for paths (kept absolute so they work under any CWD)
+app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER
+app.config['GENERATED_FOLDER'] = config.GENERATED_FOLDER
 
 # Ensure required directories exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -222,6 +222,29 @@ def revoked_page():
 def suspended_page():
     """Show suspended account message"""
     return render_template('suspended.html')
+
+
+# ============================================================================
+# HEALTH CHECK (used by Render / uptime monitors — does not touch the DB)
+# ============================================================================
+
+@app.route('/healthz')
+def health_check():
+    """Liveness probe. Keep this DB-free so it always answers."""
+    return jsonify({'status': 'ok'}), 200
+
+
+@app.route('/api/health')
+def api_health():
+    """Readiness probe including a lightweight database check."""
+    try:
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({'status': 'ok', 'database': 'connected'}), 200
+    except Exception as exc:
+        app.logger.error("Health check DB query failed: %s", exc)
+        return jsonify({'status': 'degraded', 'database': 'unavailable'}), 503
+    finally:
+        db.session.remove()
 
 
 # ============================================================================
@@ -701,27 +724,107 @@ def inject_user():
 #         db.create_all()
 #     app.run(debug=True, host='0.0.0.0', port=5000)
 
-with app.app_context():
-    db.create_all()
+def _ensure_schema_up_to_date():
+    """Reconcile existing tables with the current models.
 
-    admin_email = os.environ.get(
-        "ADMIN_EMAIL", "dmtoravi@gmail.com"
-    ).strip().lower()
+    ``db.create_all()`` creates tables that do not exist yet but never
+    *alters* tables that already do, so additive model changes (for example
+    the refresh-token columns on ``sessions``) are silently skipped on
+    deploy. This adds any missing nullable columns and their indexes, so
+    additive upgrades apply themselves on startup.
+    """
+    from sqlalchemy import inspect, text
 
-    admin_password = os.environ.get("ADMIN_PASSWORD")
+    inspector = inspect(db.engine)
+    quote = db.engine.dialect.identifier_preparer.quote
+    existing_tables = set(inspector.get_table_names())
 
-    if admin_password and User.query.count() == 0:
-        admin = User(
-            email=admin_email,
-            full_name="Administrator",
-            password_hash=AuthService.hash_password(admin_password),
-            account_status="approved",
-            is_admin=True
-        )
+    for table in db.metadata.sorted_tables:
+        if table.name not in existing_tables:
+            continue  # brand-new table — create_all() has it covered
 
-        db.session.add(admin)
-        db.session.commit()
-        app.logger.info("Initial admin account created")
-   
+        present = {col['name'] for col in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in present:
+                continue
+            if not column.nullable:
+                app.logger.error(
+                    "Schema drift: %s.%s is missing but NOT NULL and cannot be "
+                    "auto-added — it needs a manual migration.",
+                    table.name, column.name,
+                )
+                continue
+
+            type_sql = column.type.compile(dialect=db.engine.dialect)
+            db.session.execute(text(
+                f'ALTER TABLE {quote(table.name)} '
+                f'ADD COLUMN {quote(column.name)} {type_sql}'
+            ))
+            app.logger.info("Schema sync: added column %s.%s", table.name, column.name)
+            present.add(column.name)
+
+            if column.index:
+                index_name = f'ix_{table.name}_{column.name}'
+                unique = 'UNIQUE ' if column.unique else ''
+                db.session.execute(text(
+                    f'CREATE {unique}INDEX IF NOT EXISTS {quote(index_name)} '
+                    f'ON {quote(table.name)} ({quote(column.name)})'
+                ))
+                app.logger.info("Schema sync: created index %s", index_name)
+
+    db.session.commit()
+
+
+def _init_database_with_retry(max_attempts=5, base_delay=2):
+    """Create tables + seed admin, retrying on Neon cold-start connection errors."""
+    import time
+
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            with app.app_context():
+                db.create_all()
+                _ensure_schema_up_to_date()
+
+                admin_email = os.environ.get(
+                    "ADMIN_EMAIL", "dmtoravi@gmail.com"
+                ).strip().lower()
+
+                admin_password = os.environ.get("ADMIN_PASSWORD")
+
+                if admin_password and User.query.count() == 0:
+                    admin = User(
+                        email=admin_email,
+                        full_name="Administrator",
+                        password_hash=AuthService.hash_password(admin_password),
+                        account_status="approved",
+                        is_admin=True
+                    )
+                    db.session.add(admin)
+                    db.session.commit()
+                    app.logger.info("Initial admin account created")
+            return
+        except Exception as exc:
+            last_error = exc
+            delay = base_delay * attempt
+            app.logger.warning(
+                "Database init attempt %d/%d failed (%s); retrying in %ds",
+                attempt, max_attempts, exc, delay
+            )
+            db.session.remove()
+            time.sleep(delay)
+
+    raise last_error
+
+
+_init_database_with_retry()
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Render/Heroku style: honor $PORT, fall back to 5000 for local dev
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '').lower() in ('1', 'true', 'yes')
+    app.run(
+        debug=debug,
+        host='0.0.0.0',
+        port=port,
+    )

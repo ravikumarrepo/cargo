@@ -4,11 +4,25 @@ Environment and settings for the application
 """
 
 import os
-from datetime import timedelta
+
+# Database Configuration
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 # Flask Configuration
-SECRET_KEY = os.environ.get('SECRET_KEY', 'cargo-dev-key-change-in-production')
 DEBUG = os.environ.get('FLASK_DEBUG', 'False') == 'True'
+
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if DEBUG or not DATABASE_URL:
+        # Local development only
+        SECRET_KEY = 'cargo-dev-key-change-in-production'
+    else:
+        # In production with a real database, refuse to start with a
+        # predictable key — sessions and password resets are signed with it.
+        raise RuntimeError(
+            "SECRET_KEY must be set in the environment when running "
+            "with a production database."
+        )
 
 # File Upload Configuration
 MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
@@ -23,19 +37,36 @@ os.makedirs(GENERATED_FOLDER, exist_ok=True)
 TEMPLATES_FOLDER = os.path.join(os.path.dirname(__file__), 'templates_data')
 os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 
-# Database Configuration
-DATABASE_URL = os.environ.get('DATABASE_URL')
-
 # If DATABASE_URL not set, use SQLite fallback (for local development)
 if not DATABASE_URL:
     DATABASE_URL = 'sqlite:///' + os.path.join(os.path.dirname(__file__), 'cargo.db')
 else:
-    # Convert PostgreSQL URL format if needed (Neon uses psycopg2)
+    # Convert PostgreSQL URL format if needed (Neon/Heroku style)
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
 
 SQLALCHEMY_DATABASE_URI = DATABASE_URL
 SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+# Connection pool resilience
+# - pool_pre_ping: validates connections before use, replacing dead ones
+#   silently (essential for Neon, which closes idle connections)
+# - pool_recycle: proactively rotate connections before the server drops them
+if DATABASE_URL.startswith('postgresql'):
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', 280)),
+        'pool_size': int(os.environ.get('DB_POOL_SIZE', 10)),
+        'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', 5)),
+        'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', 30)),
+        'connect_args': {
+            'connect_timeout': int(os.environ.get('DB_CONNECT_TIMEOUT', 15)),
+            'application_name': 'cargo-pdf-generator',
+        },
+    }
+else:
+    # SQLite needs no pooling
+    SQLALCHEMY_ENGINE_OPTIONS = {}
 
 # Authentication Configuration
 SESSION_TIMEOUT = int(os.environ.get('SESSION_TIMEOUT', 28800))  # 8 hours (extended from 15 min)

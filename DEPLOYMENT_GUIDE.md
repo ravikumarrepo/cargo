@@ -83,7 +83,7 @@ Replace `your-app-name` with something unique (e.g., `cargo-app-yourname`)
 
 ```bash
 heroku config:set ADMIN_EMAIL=dmtoravi@gmail.com
-heroku config:set ADMIN_PASSWORD=ravi993440@
+heroku config:set ADMIN_PASSWORD=<set-securely>
 heroku config:set FLASK_SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 heroku config:set FLASK_DEBUG=False
 heroku config:set DATABASE_URL=sqlite:///cargo.db
@@ -138,7 +138,7 @@ git push -u origin main
 In Railway dashboard:
 ```
 ADMIN_EMAIL=dmtoravi@gmail.com
-ADMIN_PASSWORD=ravi993440@
+ADMIN_PASSWORD=<set-in-dashboard>
 FLASK_SECRET_KEY=<generate random>
 FLASK_DEBUG=False
 DATABASE_URL=sqlite:///cargo.db
@@ -206,7 +206,7 @@ from app import app as application
 In PythonAnywhere bash:
 ```bash
 export ADMIN_EMAIL=dmtoravi@gmail.com
-export ADMIN_PASSWORD=ravi993440@
+export ADMIN_PASSWORD=<set-in-dashboard>
 ```
 
 Or edit `.env` file and load it in WSGI.
@@ -270,7 +270,7 @@ User=www-data
 WorkingDirectory=/var/www/cargo
 Environment="PATH=/var/www/cargo/venv/bin"
 Environment="ADMIN_EMAIL=dmtoravi@gmail.com"
-Environment="ADMIN_PASSWORD=ravi993440@"
+Environment="ADMIN_PASSWORD=<set-in-dashboard>"
 Environment="FLASK_SECRET_KEY=<generate-random>"
 Environment="FLASK_DEBUG=False"
 ExecStart=/var/www/cargo/venv/bin/gunicorn -w 4 -b 127.0.0.1:5000 app:app
