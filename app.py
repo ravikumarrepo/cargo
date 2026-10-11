@@ -672,6 +672,18 @@ def inject_user():
 
 with app.app_context():
     db.create_all()
+    admin_email = os.environ.get(
+        "ADMIN_EMAIL", "dmtoravi@gmail.com"
+    )
+    admin_user = User.query.filter_by(email=admin_email).first()
+
+    print("=== CARGO DATABASE CHECK ===")
+    print("Total users:", User.query.count())
+    print("Admin exists:", admin_user is not None)
+
+    if admin_user:
+        print("Admin flag:", admin_user.is_admin)
+        print("Account status:", admin_user.account_status)
    
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
