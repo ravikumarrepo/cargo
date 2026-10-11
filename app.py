@@ -112,6 +112,9 @@ def login():
                 'success': True,
                 'message': message,
                 'token': session.token,
+                'refreshToken': session.refresh_token,
+                'expiresAt': session.expires_at.isoformat(),
+                'refreshExpiresAt': session.refresh_expires_at.isoformat(),
                 'user': {
                     'id': user.id,
                     'email': user.email,
@@ -166,6 +169,34 @@ def logout():
         return response, 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/auth/refresh', methods=['POST'])
+def refresh_session():
+    """Refresh session using refresh token"""
+    try:
+        data = request.json
+        refresh_token = data.get('refreshToken', '').strip()
+
+        if not refresh_token:
+            return jsonify({'success': False, 'error': 'Refresh token required'}), 400
+
+        success, message, session = AuthService.refresh_session(refresh_token)
+
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message,
+                'token': session.token,
+                'refreshToken': session.refresh_token,
+                'expiresAt': session.expires_at.isoformat(),
+                'refreshExpiresAt': session.refresh_expires_at.isoformat()
+            }), 200
+        else:
+            return jsonify({'success': False, 'error': message}), 401
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': f'Refresh failed: {str(e)}'}), 500
 
 
 @app.route('/pending')

@@ -56,13 +56,21 @@ class Session(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = db.Column(db.String(36), db.ForeignKey('users.id'), nullable=False, index=True)
     token = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    refresh_token = db.Column(db.String(255), unique=True, nullable=True, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
+    refresh_expires_at = db.Column(db.DateTime, nullable=True)
 
     def is_valid(self):
         """Check if session is still valid"""
         return datetime.utcnow() < self.expires_at
+
+    def is_refresh_valid(self):
+        """Check if refresh token is still valid"""
+        if not self.refresh_token or not self.refresh_expires_at:
+            return False
+        return datetime.utcnow() < self.refresh_expires_at
 
     def to_dict(self):
         """Convert session to dictionary"""

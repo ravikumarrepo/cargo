@@ -159,12 +159,15 @@ class AuthService:
                 return False, f"Account status: {user.account_status}", None, user
 
             # Create new session
-            from config import SESSION_TIMEOUT
+            from config import SESSION_TIMEOUT, REFRESH_TOKEN_EXPIRY
             token = str(uuid.uuid4())
+            refresh_token = str(uuid.uuid4())
             session = Session(
                 user_id=user.id,
                 token=token,
-                expires_at=datetime.utcnow() + timedelta(seconds=SESSION_TIMEOUT)
+                refresh_token=refresh_token,
+                expires_at=datetime.utcnow() + timedelta(seconds=SESSION_TIMEOUT),
+                refresh_expires_at=datetime.utcnow() + timedelta(seconds=REFRESH_TOKEN_EXPIRY)
             )
 
             db.session.add(session)
@@ -249,9 +252,50 @@ class AuthService:
             return False
 
     @staticmethod
-    def get_user_by_id(user_id: str) -> User | None:
-        """Get a user by ID"""
-        return User.query.get(user_id)
+    def refresh_session(refresh_token: str) -> tuple[bool, str, Session | None]:
+        """
+        Refresh a session using refresh token
+
+        Args:
+            refresh_token: Refresh token
+
+        Returns:
+            Tuple of (success, message, new_session)
+        """
+        try:
+            # Find session by refresh token
+            session = Session.query.filter_by(refresh_token=refresh_token).first()
+
+            if not session:
+                return False, "Invalid refresh token", None
+
+            # Check if refresh token is still valid
+            if not session.is_refresh_valid():
+                return False, "Refresh token expired", None
+
+            # Check user account status
+            user = session.user
+            if user.account_status != 'approved':
+                return False, "Account is not approved", None
+
+            # Generate new access token
+            from config import SESSION_TIMEOUT, REFRESH_TOKEN_EXPIRY
+            new_token = str(uuid.uuid4())
+            new_refresh_token = str(uuid.uuid4())
+
+            # Update session with new tokens
+            session.token = new_token
+            session.refresh_token = new_refresh_token
+            session.expires_at = datetime.utcnow() + timedelta(seconds=SESSION_TIMEOUT)
+            session.refresh_expires_at = datetime.utcnow() + timedelta(seconds=REFRESH_TOKEN_EXPIRY)
+
+            db.session.commit()
+
+            return True, "Token refreshed", session
+
+        except Exception as e:
+            db.session.rollback()
+            return False, f"Refresh failed: {str(e)}", None
 
     @staticmethod
     def get_user_by_email(email: str) -> User | None:

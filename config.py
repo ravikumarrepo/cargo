@@ -38,7 +38,7 @@ SQLALCHEMY_DATABASE_URI = DATABASE_URL
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Authentication Configuration
-SESSION_TIMEOUT = int(os.environ.get('SESSION_TIMEOUT', 900))  # 15 minutes
+SESSION_TIMEOUT = int(os.environ.get('SESSION_TIMEOUT', 28800))  # 8 hours (extended from 15 min)
 REFRESH_TOKEN_EXPIRY = int(os.environ.get('REFRESH_TOKEN_EXPIRY', 604800))  # 7 days
 LOGIN_RATE_LIMIT = os.environ.get('LOGIN_RATE_LIMIT', '5/minute')  # Max 5 attempts per minute per email
 
