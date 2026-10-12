@@ -5,7 +5,7 @@ services:
     name: cargo-pdf-generator
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && playwright install --with-deps chromium
     # Bind to $PORT (Render requirement) and give PDF rendering room to finish
     startCommand: gunicorn -w 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT app:app
     healthCheckPath: /healthz

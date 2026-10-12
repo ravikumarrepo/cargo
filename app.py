@@ -577,38 +577,102 @@ def generate_single_pdf():
         return jsonify({'error': str(e)}), 400
 
 
+
 @app.route('/api/generate-bulk-pdfs', methods=['POST'])
 @auth_required
 def generate_bulk_pdfs():
-    """Generate PDFs for all airlines and return as ZIP"""
+    """Generate PDFs for all airlines and return as ZIP."""
     try:
-        data = request.json
+        data = request.get_json(silent=True) or {}
         results = data.get('results', [])
         settings = data.get('settings', {})
 
-        # Create ZIP file in memory
+        if not isinstance(results, list):
+            return jsonify({
+                'success': False,
+                'error': 'Results must be a list.'
+            }), 400
+
+        if not results:
+            return jsonify({
+                'success': False,
+                'error': 'No results provided for PDF generation.'
+            }), 400
+
+        if not isinstance(settings, dict):
+            return jsonify({
+                'success': False,
+                'error': 'Settings must be an object.'
+            }), 400
+
+        # Prepare every document using the existing frontend field names.
+        documents = []
+
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+
+            airline = result.get('airline', '')
+            title = result.get('generatedTitle', '')
+            content = result.get('generatedContent', '')
+
+            documents.append({
+                'airline': airline,
+                'title': title,
+                'content': content,
+                'page_size': settings.get('pageSize', 'A4'),
+                'orientation': settings.get(
+                    'orientation', 'portrait'
+                ),
+                'font_size': settings.get('fontSize', 11),
+                'margin': settings.get('margin', 50),
+            })
+
+        if not documents:
+            return jsonify({
+                'success': False,
+                'error': 'No valid documents were provided.'
+            }), 400
+
+        # Generate all PDFs using ONE shared Chromium browser.
+        pdf_buffers = pdf_generator.generate_pdfs(documents)
+
+        if len(pdf_buffers) != len(documents):
+            raise RuntimeError(
+                'PDF count does not match document count.'
+            )
+
+        # Build the ZIP in memory.
         zip_buffer = BytesIO()
+        used_filenames = set()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for result in results:
-                airline = result.get('airline', '')
-                title = result.get('generatedTitle', '')
-                content = result.get('generatedContent', '')
+        with zipfile.ZipFile(
+            zip_buffer, 'w', zipfile.ZIP_DEFLATED
+        ) as zip_file:
+            for document, pdf_buffer in zip(
+                documents, pdf_buffers
+            ):
+                airline = document.get('airline') or 'document'
 
-                # Generate PDF
-                pdf_buffer = pdf_generator.generate_pdf(
-                    airline=airline,
-                    title=title,
-                    content=content,
-                    page_size=settings.get('pageSize', 'A4'),
-                    orientation=settings.get('orientation', 'portrait'),
-                    font_size=settings.get('fontSize', 11),
-                    margin=settings.get('margin', 50)
+                filename = pdf_generator.sanitize_filename(
+                    f'{airline}.pdf'
                 )
 
-                # Add to ZIP
-                filename = pdf_generator.sanitize_filename(f"{airline}.pdf")
-                zip_file.writestr(filename, pdf_buffer.getvalue())
+                # Prevent duplicate airline names overwriting ZIP entries.
+                original_name = filename
+                counter = 2
+
+                while filename.casefold() in used_filenames:
+                    stem = original_name[:-4]
+                    filename = f'{stem}_{counter}.pdf'
+                    counter += 1
+
+                used_filenames.add(filename.casefold())
+
+                zip_file.writestr(
+                    filename,
+                    pdf_buffer.getvalue()
+                )
 
         zip_buffer.seek(0)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -619,52 +683,13 @@ def generate_bulk_pdfs():
             as_attachment=True,
             download_name=f'cargo_pdfs_{timestamp}.zip'
         )
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-
-@app.route('/api/parse-airlines', methods=['POST'])
-@auth_required
-def parse_airlines():
-    """Parse airline list from text or CSV file"""
-    try:
-        if 'file' in request.files:
-            file = request.files['file']
-            if file and file.filename:
-                content = file.read().decode('utf-8')
-                airlines = validation_service.parse_airline_list(content)
-                return jsonify({'success': True, 'airlines': airlines})
-
-        text = request.form.get('text', '')
-        airlines = validation_service.parse_airline_list(text)
-
-        return jsonify({'success': True, 'airlines': airlines})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
-
-@app.route('/api/templates', methods=['GET'])
-@auth_required
-def get_templates():
-    """Get all saved templates"""
-    try:
-        templates = template_manager.get_all_templates()
-        return jsonify({'success': True, 'templates': templates})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
-
-@app.route('/api/templates', methods=['POST'])
-@auth_required
-def save_template():
-    """Save a new template"""
-    try:
-        data = request.json
-        template_id = template_manager.save_template(data)
-        return jsonify({'success': True, 'templateId': template_id})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
+        app.logger.exception('Bulk PDF generation failed')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/templates/<template_id>', methods=['GET'])
 @auth_required
