@@ -69,6 +69,17 @@ class PDFGenerator:
             print-color-adjust: exact;
         }}
 
+        
+        @font-face {
+            font-family: "NotoColorEmoji";
+            src: url("file:///opt/render/project/src/static/fonts/NotoColorEmoji.ttf");
+        }
+        
+        .emoji {
+            font-family: "NotoColorEmoji", sans-serif;
+        }
+
+
         h1 {{
             font-size: {font_size + 7}px;
             font-weight: bold;
