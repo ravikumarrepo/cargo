@@ -63,7 +63,7 @@ class PDFGenerator:
             line-height: 1.6;
             color: #1a1a1a;
             margin: 0;
-            padding: {margin}mm;
+            padding: 0;
             overflow-wrap: anywhere;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
