@@ -78,7 +78,10 @@ class PDFGenerator:
 
 
         .emoji {{
-            font-family: "NotoColorEmoji", sans-serif;
+            width: 1em;
+            height: 1em;
+            vertical-align: -0.12em;
+            display: inline-block;
         }}
 
 
@@ -137,15 +140,41 @@ class PDFGenerator:
                             margin=margin,
                         )
 
-                        await page.set_content(
-                            html_content,
-                            wait_until="domcontentloaded",
+                        # Load Twemoji and replace emoji characters with SVG images.
+                        await page.add_script_tag(
+                            url="https://cdn.jsdelivr.net/npm/@twemoji/api@17.0.3/dist/twemoji.min.js"
                         )
+                        
+                        
+                        await page.evaluate("""
+                            async () => {
+                                twemoji.parse(document.body, {
+                                    base: "https://cdn.jsdelivr.net/gh/jdecked/twemoji@17.0.3/assets/",
+                                    folder: "svg",
+                                    ext: ".svg"
+                                });
+                        
+                                const images = [...document.querySelectorAll("img.emoji")];
+                        
+                                await Promise.all(images.map(async (img) => {
+                                    try {
+                                        if (!img.complete) {
+                                            await new Promise((resolve) => {
+                                                img.onload = resolve;
+                                                img.onerror = resolve;
+                                            });
+                                        }
+                        
+                                        if (img.naturalWidth > 0 && img.decode) {
+                                            await img.decode();
+                                        }
+                                    } catch (error) {
+                                        console.warn("Emoji image could not be decoded:", img.alt);
+                                    }
+                                }));
+                            }
+                        """)
 
-                        # Wait for the browser's available fonts to be ready.
-                        await page.evaluate(
-                            "() => document.fonts.ready.then(() => true)"
-                        )
 
                         pdf_bytes = await page.pdf(
                             format=self._get_page_format(
