@@ -595,7 +595,7 @@ def generate_bulk_pdfs():
                 "page_size": settings.get("pageSize", "A4"),
                 "orientation": settings.get("orientation", "portrait"),
                 "font_size": settings.get("fontSize", 11),
-                "margin": settings.get("margin", 50),
+                "margin": settings.get("margin", 10),
             }
             for result in results
         ]
