@@ -577,37 +577,43 @@ def generate_single_pdf():
         return jsonify({'error': str(e)}), 400
 
 
+
 @app.route('/api/generate-bulk-pdfs', methods=['POST'])
 @auth_required
 def generate_bulk_pdfs():
-    """Generate PDFs for all airlines and return as ZIP"""
+    """Generate PDFs for all airlines and return as ZIP."""
     try:
-        data = request.json
+        data = request.json or {}
         results = data.get('results', [])
         settings = data.get('settings', {})
 
-        # Create ZIP file in memory
+        documents = [
+            {
+                "airline": result.get("airline", ""),
+                "title": result.get("generatedTitle", ""),
+                "content": result.get("generatedContent", ""),
+                "page_size": settings.get("pageSize", "A4"),
+                "orientation": settings.get("orientation", "portrait"),
+                "font_size": settings.get("fontSize", 11),
+                "margin": settings.get("margin", 50),
+            }
+            for result in results
+        ]
+
+        # Generate each PDF once using the shared browser.
+        pdf_buffers = pdf_generator.generate_pdfs(documents)
+
+        # Create ZIP file in memory.
         zip_buffer = BytesIO()
 
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for result in results:
+        with zipfile.ZipFile(
+            zip_buffer, 'w', zipfile.ZIP_DEFLATED
+        ) as zip_file:
+            for result, pdf_buffer in zip(results, pdf_buffers):
                 airline = result.get('airline', '')
-                title = result.get('generatedTitle', '')
-                content = result.get('generatedContent', '')
-
-                # Generate PDF
-                pdf_buffer = pdf_generator.generate_pdf(
-                    airline=airline,
-                    title=title,
-                    content=content,
-                    page_size=settings.get('pageSize', 'A4'),
-                    orientation=settings.get('orientation', 'portrait'),
-                    font_size=settings.get('fontSize', 11),
-                    margin=settings.get('margin', 50)
+                filename = pdf_generator.sanitize_filename(
+                    f"{airline}.pdf"
                 )
-
-                # Add to ZIP
-                filename = pdf_generator.sanitize_filename(f"{airline}.pdf")
                 zip_file.writestr(filename, pdf_buffer.getvalue())
 
         zip_buffer.seek(0)
@@ -619,7 +625,9 @@ def generate_bulk_pdfs():
             as_attachment=True,
             download_name=f'cargo_pdfs_{timestamp}.zip'
         )
+
     except Exception as e:
+        app.logger.exception("Bulk PDF generation failed")
         return jsonify({'error': str(e)}), 400
 
 
