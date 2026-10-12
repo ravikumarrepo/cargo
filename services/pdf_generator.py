@@ -70,14 +70,16 @@ class PDFGenerator:
         }}
 
         
-        @font-face {
+        
+        @font-face {{
             font-family: "NotoColorEmoji";
             src: url("file:///opt/render/project/src/static/fonts/NotoColorEmoji.ttf");
-        }
-        
-        .emoji {
+        }}
+
+
+        .emoji {{
             font-family: "NotoColorEmoji", sans-serif;
-        }
+        }}
 
 
         h1 {{
