@@ -577,102 +577,38 @@ def generate_single_pdf():
         return jsonify({'error': str(e)}), 400
 
 
-
 @app.route('/api/generate-bulk-pdfs', methods=['POST'])
 @auth_required
 def generate_bulk_pdfs():
-    """Generate PDFs for all airlines and return as ZIP."""
+    """Generate PDFs for all airlines and return as ZIP"""
     try:
-        data = request.get_json(silent=True) or {}
+        data = request.json
         results = data.get('results', [])
         settings = data.get('settings', {})
 
-        if not isinstance(results, list):
-            return jsonify({
-                'success': False,
-                'error': 'Results must be a list.'
-            }), 400
-
-        if not results:
-            return jsonify({
-                'success': False,
-                'error': 'No results provided for PDF generation.'
-            }), 400
-
-        if not isinstance(settings, dict):
-            return jsonify({
-                'success': False,
-                'error': 'Settings must be an object.'
-            }), 400
-
-        # Prepare every document using the existing frontend field names.
-        documents = []
-
-        for result in results:
-            if not isinstance(result, dict):
-                continue
-
-            airline = result.get('airline', '')
-            title = result.get('generatedTitle', '')
-            content = result.get('generatedContent', '')
-
-            documents.append({
-                'airline': airline,
-                'title': title,
-                'content': content,
-                'page_size': settings.get('pageSize', 'A4'),
-                'orientation': settings.get(
-                    'orientation', 'portrait'
-                ),
-                'font_size': settings.get('fontSize', 11),
-                'margin': settings.get('margin', 50),
-            })
-
-        if not documents:
-            return jsonify({
-                'success': False,
-                'error': 'No valid documents were provided.'
-            }), 400
-
-        # Generate all PDFs using ONE shared Chromium browser.
-        pdf_buffers = pdf_generator.generate_pdfs(documents)
-
-        if len(pdf_buffers) != len(documents):
-            raise RuntimeError(
-                'PDF count does not match document count.'
-            )
-
-        # Build the ZIP in memory.
+        # Create ZIP file in memory
         zip_buffer = BytesIO()
-        used_filenames = set()
 
-        with zipfile.ZipFile(
-            zip_buffer, 'w', zipfile.ZIP_DEFLATED
-        ) as zip_file:
-            for document, pdf_buffer in zip(
-                documents, pdf_buffers
-            ):
-                airline = document.get('airline') or 'document'
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for result in results:
+                airline = result.get('airline', '')
+                title = result.get('generatedTitle', '')
+                content = result.get('generatedContent', '')
 
-                filename = pdf_generator.sanitize_filename(
-                    f'{airline}.pdf'
+                # Generate PDF
+                pdf_buffer = pdf_generator.generate_pdf(
+                    airline=airline,
+                    title=title,
+                    content=content,
+                    page_size=settings.get('pageSize', 'A4'),
+                    orientation=settings.get('orientation', 'portrait'),
+                    font_size=settings.get('fontSize', 11),
+                    margin=settings.get('margin', 50)
                 )
 
-                # Prevent duplicate airline names overwriting ZIP entries.
-                original_name = filename
-                counter = 2
-
-                while filename.casefold() in used_filenames:
-                    stem = original_name[:-4]
-                    filename = f'{stem}_{counter}.pdf'
-                    counter += 1
-
-                used_filenames.add(filename.casefold())
-
-                zip_file.writestr(
-                    filename,
-                    pdf_buffer.getvalue()
-                )
+                # Add to ZIP
+                filename = pdf_generator.sanitize_filename(f"{airline}.pdf")
+                zip_file.writestr(filename, pdf_buffer.getvalue())
 
         zip_buffer.seek(0)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -683,13 +619,52 @@ def generate_bulk_pdfs():
             as_attachment=True,
             download_name=f'cargo_pdfs_{timestamp}.zip'
         )
-
     except Exception as e:
-        app.logger.exception('Bulk PDF generation failed')
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/parse-airlines', methods=['POST'])
+@auth_required
+def parse_airlines():
+    """Parse airline list from text or CSV file"""
+    try:
+        if 'file' in request.files:
+            file = request.files['file']
+            if file and file.filename:
+                content = file.read().decode('utf-8')
+                airlines = validation_service.parse_airline_list(content)
+                return jsonify({'success': True, 'airlines': airlines})
+
+        text = request.form.get('text', '')
+        airlines = validation_service.parse_airline_list(text)
+
+        return jsonify({'success': True, 'airlines': airlines})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/templates', methods=['GET'])
+@auth_required
+def get_templates():
+    """Get all saved templates"""
+    try:
+        templates = template_manager.get_all_templates()
+        return jsonify({'success': True, 'templates': templates})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
+
+@app.route('/api/templates', methods=['POST'])
+@auth_required
+def save_template():
+    """Save a new template"""
+    try:
+        data = request.json
+        template_id = template_manager.save_template(data)
+        return jsonify({'success': True, 'templateId': template_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
+
 
 @app.route('/api/templates/<template_id>', methods=['GET'])
 @auth_required
@@ -749,57 +724,6 @@ def inject_user():
 #         db.create_all()
 #     app.run(debug=True, host='0.0.0.0', port=5000)
 
-def _ensure_schema_up_to_date():
-    """Reconcile existing tables with the current models.
-
-    ``db.create_all()`` creates tables that do not exist yet but never
-    *alters* tables that already do, so additive model changes (for example
-    the refresh-token columns on ``sessions``) are silently skipped on
-    deploy. This adds any missing nullable columns and their indexes, so
-    additive upgrades apply themselves on startup.
-    """
-    from sqlalchemy import inspect, text
-
-    inspector = inspect(db.engine)
-    quote = db.engine.dialect.identifier_preparer.quote
-    existing_tables = set(inspector.get_table_names())
-
-    for table in db.metadata.sorted_tables:
-        if table.name not in existing_tables:
-            continue  # brand-new table — create_all() has it covered
-
-        present = {col['name'] for col in inspector.get_columns(table.name)}
-        for column in table.columns:
-            if column.name in present:
-                continue
-            if not column.nullable:
-                app.logger.error(
-                    "Schema drift: %s.%s is missing but NOT NULL and cannot be "
-                    "auto-added — it needs a manual migration.",
-                    table.name, column.name,
-                )
-                continue
-
-            type_sql = column.type.compile(dialect=db.engine.dialect)
-            db.session.execute(text(
-                f'ALTER TABLE {quote(table.name)} '
-                f'ADD COLUMN {quote(column.name)} {type_sql}'
-            ))
-            app.logger.info("Schema sync: added column %s.%s", table.name, column.name)
-            present.add(column.name)
-
-            if column.index:
-                index_name = f'ix_{table.name}_{column.name}'
-                unique = 'UNIQUE ' if column.unique else ''
-                db.session.execute(text(
-                    f'CREATE {unique}INDEX IF NOT EXISTS {quote(index_name)} '
-                    f'ON {quote(table.name)} ({quote(column.name)})'
-                ))
-                app.logger.info("Schema sync: created index %s", index_name)
-
-    db.session.commit()
-
-
 def _init_database_with_retry(max_attempts=5, base_delay=2):
     """Create tables + seed admin, retrying on Neon cold-start connection errors."""
     import time
@@ -809,7 +733,6 @@ def _init_database_with_retry(max_attempts=5, base_delay=2):
         try:
             with app.app_context():
                 db.create_all()
-                _ensure_schema_up_to_date()
 
                 admin_email = os.environ.get(
                     "ADMIN_EMAIL", "dmtoravi@gmail.com"
