@@ -30,8 +30,18 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'temp')
 GENERATED_FOLDER = os.path.join(os.path.dirname(__file__), 'generated_pdfs')
 
 # Ensure directories exist
+if os.environ.get("VERCEL"):
+    UPLOAD_FOLDER = "/tmp/cargo"
+    GENERATED_FOLDER = "/tmp/cargo/generated_pdfs"
+    TEMPLATES_FOLDER = "/tmp/cargo/templates_data"
+else:
+    UPLOAD_FOLDER = os.path.join(BASE_DIR, "temp")
+    GENERATED_FOLDER = os.path.join(BASE_DIR, "generated_pdfs")
+    TEMPLATES_FOLDER = os.path.join(BASE_DIR, "templates_data")
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(GENERATED_FOLDER, exist_ok=True)
+os.makedirs(TEMPLATES_FOLDER, exist_ok=True)
 
 # Template Storage
 TEMPLATES_FOLDER = os.path.join(os.path.dirname(__file__), 'templates_data')
