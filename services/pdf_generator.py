@@ -12,6 +12,13 @@ import os
 import re
 from io import BytesIO
 
+
+from pathlib import Path
+
+if os.getenv("VERCEL"):
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(
+        Path(__file__).resolve().parent.parent / ".playwright-browsers"
+    )
 from playwright.async_api import async_playwright
 
 
